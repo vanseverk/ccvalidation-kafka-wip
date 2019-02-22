@@ -16,7 +16,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.TopicProcessor;
 import reactor.kafka.receiver.KafkaReceiver;
 import reactor.kafka.receiver.ReceiverOptions;
 import reactor.kafka.receiver.ReceiverRecord;
@@ -40,7 +39,7 @@ public class PaymentGatewayImpl implements PaymentGateway {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    private TopicProcessor<PaymentResultEvent> sharedReceivedMessages;
+    private Flux<PaymentResultEvent> sharedReceivedMessages;
 
     public PaymentGatewayImpl() {
         final Map<String, Object> producerProps = new HashMap<>();
@@ -66,49 +65,33 @@ public class PaymentGatewayImpl implements PaymentGateway {
 
         kafkaReceiver = KafkaReceiver.create(consumerOptions);
 
-        Flux<ReceiverRecord> incomingReceivedMessages = kafkaReceiver.receive();
-
-        Flux<PaymentResultEvent> msgs = incomingReceivedMessages
-                .map(r -> {
-                    r.receiverOffset().acknowledge();
-                    PaymentResultEvent result = fromBinary((String) r.value(), PaymentResultEvent.class);
-                    System.out.println("Result: " + result);
-                    return result;
-                });
-
-        sharedReceivedMessages = TopicProcessor.create();
-
-        msgs.subscribe(sharedReceivedMessages);
-
-        Flux.from(sharedReceivedMessages).doOnEach(a -> log.info("Received reply from validator")).subscribe();
+        sharedReceivedMessages = ((Flux<ReceiverRecord>) kafkaReceiver.receive())
+        .map(r -> {
+            r.receiverOffset().acknowledge();
+            PaymentResultEvent result = fromBinary((String) r.value(), PaymentResultEvent.class);
+            return result;
+        })
+        .share()
+        .publish()
+        .autoConnect();
     }
 
 
     @Override
     public Mono<PaymentResultEvent> doPayment(final PaymentEvent payment) {
-        log.info("Sending payment..");
-
         String payload = toBinary(payment);
 
         return Flux.from(sharedReceivedMessages)
-                .filter(received -> {
-                    System.out.println(payment.getId() + " " + received.getPaymentId());
-                    return payment.getId().equals(received.getPaymentId());
-                })
-                .map(r -> {
-                    System.out.println("Got our result! " + r.getPaymentId());
-                    return r;
-                }).doOnSubscribe(s -> {
-                    SenderRecord<Integer, String, Integer> message = SenderRecord.create(new ProducerRecord<>("unconfirmed-transactions", 1, payload), 1);
+            .filter(received -> isFeedbackForMessage(payment, received))
+            .doOnSubscribe(s -> {
+                SenderRecord<Integer, String, Integer> message = SenderRecord.create(new ProducerRecord<>("unconfirmed-transactions", 1, payload), 1);
+                kafkaProducer.send(Mono.just(message)).subscribe();
+            })
+            .next();
+    }
 
-                    kafkaProducer.send(Mono.just(message)).subscribe();
-                })
-                .take(1)
-                .single()
-                .map(s -> {
-                    System.out.println("Our single result " + s);
-                    return s;
-                });
+    private boolean isFeedbackForMessage(PaymentEvent payment, PaymentResultEvent received) {
+        return payment.getId().equals(received.getPaymentId());
     }
 
     private String toBinary(Object object) {
