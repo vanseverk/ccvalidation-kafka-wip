@@ -89,7 +89,7 @@ public class PaymentGatewayImpl implements PaymentGateway {
         return Flux.from(sharedReceivedMessages)
             .filter(received -> isFeedbackForMessage(payment, received))
             .doOnSubscribe(s -> {
-                SenderRecord<Integer, String, Integer> message = SenderRecord.create(new ProducerRecord<>("unconfirmed-transactions", 1, payload), 1);
+                SenderRecord<Integer, String, Integer> message = SenderRecord.create(new ProducerRecord<>("unconfirmed-transactions", payload), 1);
                 kafkaProducer.send(Mono.just(message)).subscribe();
             })
             .next();
