@@ -50,7 +50,7 @@ function sendPayment(url, paymentInfo) {
 
 function receivedPaymentResult(result) {
     var paymentId = result.paymentId;
-    var successful = result.succesful;
+    var successful = result.successful;
 
     var paymentInfoLine = $("#paymentinfo" + paymentId);
 

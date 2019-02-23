@@ -1,26 +1,23 @@
 package be.reactiveprogramming.ccvalidationkafka.common.event;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-
 public class PaymentResultEvent {
 
-  private String paymentId;
-  private Boolean succesful;
+    private String paymentId;
+    private Boolean successful;
 
-  public PaymentResultEvent() {
-  }
+    public PaymentResultEvent() {
+    }
 
-  public PaymentResultEvent(String paymentId, Boolean succesful) {
-    this.paymentId = paymentId;
-    this.succesful = succesful;
-  }
+    public PaymentResultEvent(String paymentId, Boolean successful) {
+        this.paymentId = paymentId;
+        this.successful = successful;
+    }
 
-  public String getPaymentId() {
-    return paymentId;
-  }
+    public String getPaymentId() {
+        return paymentId;
+    }
 
-  public Boolean getSuccesful() {
-    return succesful;
-  }
+    public Boolean getsuccessful() {
+        return successful;
+    }
 }
