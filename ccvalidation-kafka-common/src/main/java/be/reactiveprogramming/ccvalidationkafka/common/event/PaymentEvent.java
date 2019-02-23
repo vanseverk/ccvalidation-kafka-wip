@@ -10,10 +10,11 @@ public class PaymentEvent {
   public PaymentEvent() {
   }
 
-  public PaymentEvent(String id, String creditCardNumber, String amount) {
+    public PaymentEvent(String id, String creditCardNumber, String amount, String gateway) {
     this.id = id;
     this.creditCardNumber = creditCardNumber;
     this.amount = amount;
+        this.gateway = gateway;
   }
 
   public String getId() {

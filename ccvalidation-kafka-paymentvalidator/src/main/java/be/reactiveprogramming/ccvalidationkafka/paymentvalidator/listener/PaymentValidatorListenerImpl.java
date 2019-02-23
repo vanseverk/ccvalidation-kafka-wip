@@ -2,6 +2,7 @@ package be.reactiveprogramming.ccvalidationkafka.paymentvalidator.listener;
 
 import be.reactiveprogramming.ccvalidationkafka.common.event.PaymentEvent;
 import be.reactiveprogramming.ccvalidationkafka.common.event.PaymentResultEvent;
+import be.reactiveprogramming.ccvalidationkafka.paymentvalidator.validator.PaymentValidator;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -43,7 +44,10 @@ public class PaymentValidatorListenerImpl {
 
     private ObjectMapper objectMapper = new ObjectMapper();
 
-    public PaymentValidatorListenerImpl() {
+    private PaymentValidator paymentValidator;
+
+    public PaymentValidatorListenerImpl(PaymentValidator paymentValidator) {
+        this.paymentValidator = paymentValidator;
 
         final Map<String, Object> producerProps = new HashMap<>();
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, IntegerSerializer.class);
@@ -75,20 +79,20 @@ public class PaymentValidatorListenerImpl {
                     r.receiverOffset().acknowledge();
                     return fromBinary((String) r.value(), PaymentEvent.class);
                 })
-                .map(paymentEvent -> calculateResult(paymentEvent))
-                .flatMap(paymentResultEvent -> sendReply(paymentResultEvent))
+                .flatMap(paymentEvent -> processEvent(paymentEvent))
                 .subscribe();
     }
 
-    private PaymentResultEvent calculateResult(PaymentEvent paymentEvent) {
-        System.out.println("Calculating result for payment " + paymentEvent.getId());
-        return new PaymentResultEvent(paymentEvent.getId(), r.nextBoolean());
+    private Publisher<?> processEvent(PaymentEvent paymentEvent) {
+        PaymentResultEvent paymentResultEvent = paymentValidator.calculateResult(paymentEvent);
+        return sendReply(paymentResultEvent, paymentEvent.getGateway());
     }
 
-    private Publisher<?> sendReply(PaymentResultEvent paymentResultEvent) {
-        System.out.println("Sending feedback..");
+    private Publisher<?> sendReply(PaymentResultEvent paymentResultEvent, String gatewayName) {
         String payload = toBinary(paymentResultEvent);
-        SenderRecord<Integer, String, Integer> message = SenderRecord.create(new ProducerRecord<>("payment-gateway-1-feedback", 1, payload), 1);
+        String feedbackTopic = "payment-gateway-" + gatewayName + "-feedback";
+
+        SenderRecord<Integer, String, Integer> message = SenderRecord.create(new ProducerRecord<>(feedbackTopic, 1, payload), 1);
         return kafkaProducer.send(Mono.just(message));
     }
 

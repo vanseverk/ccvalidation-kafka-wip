@@ -1,5 +1,6 @@
 package be.reactiveprogramming.ccvalidationkafka.client.gateway;
 
+import be.reactiveprogramming.ccvalidationkafka.client.command.CreatePaymentCommand;
 import be.reactiveprogramming.ccvalidationkafka.common.event.PaymentEvent;
 import be.reactiveprogramming.ccvalidationkafka.common.event.PaymentResultEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -41,6 +42,8 @@ public class PaymentGatewayImpl implements PaymentGateway {
 
     private Flux<PaymentResultEvent> sharedReceivedMessages;
 
+    private String gatewayName = "1";
+
     public PaymentGatewayImpl() {
         final Map<String, Object> producerProps = new HashMap<>();
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, IntegerSerializer.class);
@@ -54,7 +57,7 @@ public class PaymentGatewayImpl implements PaymentGateway {
         final Map<String, Object> consumerProps = new HashMap<>();
         consumerProps.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, IntegerDeserializer.class);
         consumerProps.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, StringDeserializer.class);
-        consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, "payment-gateway-1");
+        consumerProps.put(ConsumerConfig.CLIENT_ID_CONFIG, "payment-gateway-" + gatewayName);
         consumerProps.put(ConsumerConfig.GROUP_ID_CONFIG, "payment-gateway");
         consumerProps.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, "localhost:9092");
 
@@ -78,7 +81,9 @@ public class PaymentGatewayImpl implements PaymentGateway {
 
 
     @Override
-    public Mono<PaymentResultEvent> doPayment(final PaymentEvent payment) {
+    public Mono<PaymentResultEvent> doPayment(final CreatePaymentCommand createPayment) {
+        final PaymentEvent payment = new PaymentEvent(createPayment.getId(), createPayment.getCreditCardNumber(), createPayment.getAmount(), gatewayName);
+
         String payload = toBinary(payment);
 
         return Flux.from(sharedReceivedMessages)
