@@ -12,20 +12,18 @@ import org.apache.kafka.common.serialization.IntegerDeserializer;
 import org.apache.kafka.common.serialization.IntegerSerializer;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
-import org.reactivestreams.Publisher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Scheduler;
-import reactor.core.scheduler.Schedulers;
 import reactor.kafka.receiver.KafkaReceiver;
 import reactor.kafka.receiver.ReceiverOptions;
 import reactor.kafka.receiver.ReceiverRecord;
 import reactor.kafka.sender.KafkaSender;
 import reactor.kafka.sender.SenderOptions;
 import reactor.kafka.sender.SenderRecord;
+import reactor.kafka.sender.SenderResult;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -74,32 +72,35 @@ public class PaymentValidatorListenerImpl {
 
         kafkaReceiver = KafkaReceiver.create(consumerOptions);
 
-        Scheduler scheduler = Schedulers.newElastic("sample", 60, true);
-
-        Flux<ReceiverRecord> incomingReceivedMessages =
-                ((Flux<ReceiverRecord>) kafkaReceiver.receive())
-                        .groupBy(m -> {
-                            System.out.println("TP: " + m.receiverOffset().topicPartition());
-                            return m.receiverOffset().topicPartition();
-                        })
-                        .flatMap(partitionFlux ->
-                                partitionFlux.publishOn(scheduler));
-
-        incomingReceivedMessages
-                .map(r -> {
-                    r.receiverOffset().acknowledge();
-                    return fromBinary((String) r.value(), PaymentEvent.class);
+        /**
+         * We create a receiver for new unconfirmed transactions
+         */
+        ((Flux<ReceiverRecord>) kafkaReceiver.receive())
+                .doOnNext(r -> {
+                    /**
+                     * Each unconfirmed payment we receive, we convert to a PaymentEvent
+                     */
+                    final PaymentEvent paymentEvent = fromBinary((String) r.value(), PaymentEvent.class);
+                    /**
+                     * We start to process the event, which will create a Reactive stream of its own.
+                     * At the end of the processing this Stream will resolve, so we can then acknowledge
+                     * the original unconfirmed payment message.
+                     */
+                    processEvent(paymentEvent)
+                            .doOnNext(sr -> r.receiverOffset().acknowledge()).subscribe();
                 })
-                .flatMap(paymentEvent -> processEvent(paymentEvent))
                 .subscribe();
     }
 
-    private Publisher<?> processEvent(PaymentEvent paymentEvent) {
+    private Flux<SenderResult> processEvent(PaymentEvent paymentEvent) {
         PaymentResultEvent paymentResultEvent = paymentValidator.calculateResult(paymentEvent);
+        /**
+         * After the regular steps in the processing, we send a message to the reply topic for the gateway our unconfirmed payment originally came from.
+         */
         return sendReply(paymentResultEvent, paymentEvent.getGateway());
     }
 
-    private Publisher<?> sendReply(PaymentResultEvent paymentResultEvent, String gatewayName) {
+    private Flux<SenderResult> sendReply(PaymentResultEvent paymentResultEvent, String gatewayName) {
         String payload = toBinary(paymentResultEvent);
         String feedbackTopic = "payment-gateway-" + gatewayName + "-feedback";
 

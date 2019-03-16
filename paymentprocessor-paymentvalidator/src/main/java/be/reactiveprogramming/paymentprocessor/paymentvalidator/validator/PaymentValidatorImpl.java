@@ -13,11 +13,6 @@ public class PaymentValidatorImpl implements PaymentValidator {
 
     @Override
     public PaymentResultEvent calculateResult(PaymentEvent paymentEvent) {
-        try {
-            Thread.sleep(5000);
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        }
         return new PaymentResultEvent(paymentEvent.getId(), r.nextBoolean());
     }
 }

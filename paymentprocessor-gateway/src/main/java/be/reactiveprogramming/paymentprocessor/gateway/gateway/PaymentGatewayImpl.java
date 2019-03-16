@@ -44,6 +44,9 @@ public class PaymentGatewayImpl implements PaymentGateway {
 
     private String gatewayName = "1";
 
+    /**
+     * Here we do some basic setup of Project Reactor Kafka to be able to send and receive messages
+     */
     public PaymentGatewayImpl() {
         final Map<String, Object> producerProps = new HashMap<>();
         producerProps.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, IntegerSerializer.class);
@@ -68,15 +71,18 @@ public class PaymentGatewayImpl implements PaymentGateway {
 
         kafkaReceiver = KafkaReceiver.create(consumerOptions);
 
+        /**
+         We start reading messages from our response Topic
+         */
         sharedReceivedMessages = ((Flux<ReceiverRecord>) kafkaReceiver.receive())
-        .map(r -> {
-            r.receiverOffset().acknowledge();
-            PaymentResultEvent result = fromBinary((String) r.value(), PaymentResultEvent.class);
-            return result;
-        })
-        .share()
-        .publish()
-        .autoConnect();
+                .map(r -> {
+                    r.receiverOffset().acknowledge();
+                    PaymentResultEvent result = fromBinary((String) r.value(), PaymentResultEvent.class);
+                    return result;
+                })
+                .share()
+                .publish()
+                .autoConnect();
     }
 
 
@@ -86,9 +92,16 @@ public class PaymentGatewayImpl implements PaymentGateway {
 
         String payload = toBinary(payment);
 
+        /**
+         * Here we create a new sub-stream on our response Topic, filtering for the message that will be the response on the message we're about to send.
+         * We want to be sure we're listening for replies before we send the question, so we're sure not to miss it!
+         */
         return Flux.from(sharedReceivedMessages)
             .filter(received -> isFeedbackForMessage(payment, received))
             .doOnSubscribe(s -> {
+                /**
+                 * After subscribing to our reply queue, we send our unconfirmed transaction to the unconfirmed-transactions topic
+                 */
                 SenderRecord<Integer, String, Integer> message = SenderRecord.create(new ProducerRecord<>("unconfirmed-transactions", payload), 1);
                 kafkaProducer.send(Mono.just(message)).subscribe();
             })
