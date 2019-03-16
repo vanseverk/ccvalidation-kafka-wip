@@ -3,12 +3,12 @@
 	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
-	<groupId>be.reactiveprogramming.ccvalidationkafka</groupId>
-	<artifactId>ccvalidation-kafka</artifactId>
+	<groupId>be.reactiveprogramming.paymentprocessor</groupId>
+	<artifactId>paymentprocessor</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<packaging>pom</packaging>
 
-	<name>ccvalidation-kafka</name>
+	<name>paymentprocessor</name>
 
 	<parent>
 		<groupId>org.springframework.boot</groupId>
@@ -18,9 +18,9 @@
 	</parent>
 
 	<modules>
-		<module>ccvalidation-kafka-common</module>
-		<module>ccvalidation-kafka-paymentvalidator</module>
-		<module>ccvalidation-kafka-client</module>
+		<module>paymentprocessor-common</module>
+		<module>paymentprocessor-gateway</module>
+		<module>paymentprocessor-paymentvalidator</module>
 	</modules>
 
 	<build>
