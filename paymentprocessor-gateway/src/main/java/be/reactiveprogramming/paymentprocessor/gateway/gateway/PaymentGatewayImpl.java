@@ -93,8 +93,9 @@ public class PaymentGatewayImpl implements PaymentGateway {
         String payload = toBinary(payment);
 
         /**
-         * Here we create a new sub-stream on our response Topic, filtering for the message that will be the response on the message we're about to send.
-         * We want to be sure we're listening for replies before we send the question, so we're sure not to miss it!
+         * Here we create a new sub-stream on our response Topic, filtering for the message that will be the response
+         * on the message we're about to send. We want to be sure we're listening for replies before we send the question,
+         * so we're sure not to miss it!
          */
         return Flux.from(sharedReceivedMessages)
             .filter(received -> isFeedbackForMessage(payment, received))

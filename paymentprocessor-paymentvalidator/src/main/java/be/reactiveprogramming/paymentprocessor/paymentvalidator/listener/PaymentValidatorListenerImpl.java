@@ -95,7 +95,8 @@ public class PaymentValidatorListenerImpl {
     private Flux<SenderResult> processEvent(PaymentEvent paymentEvent) {
         PaymentResultEvent paymentResultEvent = paymentValidator.calculateResult(paymentEvent);
         /**
-         * After the regular steps in the processing, we send a message to the reply topic for the gateway our unconfirmed payment originally came from.
+         * After the regular steps in the processing, we send a message to the reply topic for the gateway
+         * our unconfirmed payment originally came from.
          */
         return sendReply(paymentResultEvent, paymentEvent.getGateway());
     }
